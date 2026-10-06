@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Gym Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600&family=Barlow+Semi+Condensed:wght@600;800&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#ECEEE8;--card:#fff;--ink:#17252A;--mut:#6B7A7F;--line:#D6DAD2;--acc:#2446F2;--ok:#1E9E6A;--warn:#E0A100}
+@media(prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#101719;--card:#19232A;--ink:#E8EEEC;--mut:#8CA0A6;--line:#2A3840;--acc:#6D86FF;--ok:#3CC48D}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.4 Barlow,system-ui,sans-serif;padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
+main{max-width:640px;margin:0 auto;padding:12px}
+h1,h2{font-family:"Barlow Semi Condensed",sans-serif;margin:0}
+h1{font-size:28px;font-weight:800}
+h2{font-size:20px;font-weight:800;margin-bottom:8px}
+section{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px;margin-top:12px}
+header{display:flex;justify-content:space-between;align-items:center}
+button,input,select{font:inherit;color:inherit}
+button{background:var(--acc);color:#fff;border:0;border-radius:8px;padding:10px 14px;font-weight:600;cursor:pointer}
+button.alt{background:transparent;color:var(--ink);border:1px solid var(--line)}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid var(--warn);outline-offset:1px}
+input,select{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:9px;width:100%;min-width:0}
+.row{display:flex;gap:8px;align-items:center}.row>*{flex:1}.row>.fit{flex:none}
+.date{display:flex;gap:8px;align-items:center;margin-top:10px}.date input{text-align:center;font-weight:600}
+.bar{height:10px;background:var(--bg);border-radius:6px;overflow:hidden;margin:8px 0 2px}.bar i{display:block;height:100%;background:var(--ok);transition:width .3s}
+.sub{color:var(--mut);font-size:14px}
+.ex{display:flex;gap:10px;align-items:center;padding:10px 0;border-top:1px solid var(--line)}
+.ex:first-of-type{border-top:0}
+.chk{width:34px;height:34px;flex:none;border-radius:50%;border:2px solid var(--mut);background:transparent;padding:0;color:#fff;font-size:18px}
+.done .chk{background:var(--ok);border-color:var(--ok)}
+.done .nm{text-decoration:line-through;color:var(--mut)}
+.ex .in{flex:1;min-width:0}.nm{font-weight:600}
+.tag{display:inline-block;font-size:12px;border-radius:5px;padding:1px 7px;color:#fff;margin-right:6px}
+.x{background:none;color:var(--mut);padding:6px 10px;font-size:20px}
+form{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}form .w2{grid-column:span 2}form .w4{grid-column:1/-1}
+label{font-size:13px;color:var(--mut);display:block}
+.mus{display:grid;grid-template-columns:92px 1fr auto;gap:8px;align-items:center;padding:5px 0;font-size:14px}
+.mus .b{height:12px;background:var(--bg);border-radius:6px;overflow:hidden}.mus .b i{display:block;height:100%}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px}
+#toast{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:8px;max-width:90%;opacity:0;pointer-events:none;transition:opacity .2s;z-index:9}
+#toast.on{opacity:1}
+svg{width:100%;height:auto;display:block}svg text{fill:var(--mut);font-size:11px}
+details summary{cursor:pointer;font-weight:600}
+</style>
+</head>
+<body>
+<main>
+<header><h1>Gym Tracker</h1><span class="sub" id="sync"></span></header>
+
+<section>
+  <div class="date"><button class="alt fit" id="prev" aria-label="Día anterior">‹</button><input type="date" id="date" aria-label="Fecha"><button class="alt fit" id="next" aria-label="Día siguiente">›</button><button class="alt fit" id="today">Hoy</button></div>
+  <div class="bar"><i id="pb" style="width:0"></i></div>
+  <div class="sub" id="ptxt">Sin ejercicios</div>
+</section>
+
+<section>
+  <h2>Rutina del día</h2>
+  <div id="list"></div>
+  <div class="row" style="margin-top:10px"><button id="opt">Ordenar óptimo</button></div>
+</section>
+
+<section>
+  <h2>Progreso</h2>
+  <div id="chart"></div>
+  <div class="sub">Barras: repeticiones totales por ejercicio. Se rellenan al marcarlos. Línea: tiempo acumulado.</div>
+</section>
+
+<section>
+  <h2>Añadir ejercicio</h2>
+  <form id="f">
+    <div class="w2"><label for="n">Ejercicio</label><input id="n" list="cat" required autocomplete="off"><datalist id="cat"></datalist></div>
+    <div class="w2"><label for="m">Músculo</label><select id="m"></select></div>
+    <div><label for="s">Series</label><input id="s" type="number" min="1" value="3"></div>
+    <div><label for="r">Reps</label><input id="r" type="number" min="1" value="10"></div>
+    <div><label for="t">Segundos</label><input id="t" type="number" min="0" value="45"></div>
+    <div><label for="p">Kg</label><input id="p" type="number" min="0" step="0.5" value="0"></div>
+    <div class="w4"><button style="width:100%">Añadir al día</button></div>
+  </form>
+</section>
+
+<section>
+  <h2>Memoria muscular</h2>
+  <div id="mem"></div>
+  <div class="sub">Series completadas en los últimos 7 días. Verde: listo para entrenar (más de 48 h). Ámbar: descansando.</div>
+</section>
+
+<section>
+  <h2>Copiar este día</h2>
+  <div class="row"><input type="date" id="cd" aria-label="Fecha destino"><button class="fit" id="copy">Copiar rutina</button></div>
+</section>
+
+<section>
+  <details><summary>Conexión con Google Sheets</summary>
+    <p class="sub">Opcional si ya se inyectó desde GitHub Secrets. Pega la URL de tu Apps Script (termina en /exec). Sin URL, los datos se guardan solo en este dispositivo.</p>
+    <div class="row"><input id="api" placeholder="https://script.google.com/macros/s/.../exec"><button class="fit" id="saveapi">Guardar</button></div>
+    <input id="tok" placeholder="Token (opcional)" type="password" style="margin-top:8px">
+  </details>
+</section>
+</main>
+<div id="toast" role="status"></div>
+
+<script>
+const MUS={Pecho:'#E4572E',Espalda:'#2446F2',Hombros:'#9B5DE5',Bíceps:'#00A6A6',Tríceps:'#F29E4C',Cuádriceps:'#1E9E6A',Isquios:'#B5179E',Glúteos:'#D81159',Gemelos:'#6C757D',Core:'#8D6E00',Cardio:'#0077B6'};
+// [músculo, tier] tier 1 compuesto grande · 2 aislado grande · 3 músculo pequeño · 4 core · 5 cardio
+const CAT={'Sentadilla':['Cuádriceps',1],'Peso muerto':['Isquios',1],'Press banca':['Pecho',1],'Press inclinado':['Pecho',1],'Press militar':['Hombros',1],'Dominadas':['Espalda',1],'Remo con barra':['Espalda',1],'Jalón al pecho':['Espalda',1],'Hip thrust':['Glúteos',1],'Zancadas':['Cuádriceps',1],'Fondos':['Tríceps',1],'Prensa':['Cuádriceps',1],
+'Aperturas':['Pecho',2],'Remo en polea':['Espalda',2],'Curl femoral':['Isquios',2],'Extensión de cuádriceps':['Cuádriceps',2],'Pájaros':['Hombros',2],
+'Elevaciones laterales':['Hombros',3],'Curl de bíceps':['Bíceps',3],'Curl martillo':['Bíceps',3],'Extensión de tríceps':['Tríceps',3],'Press francés':['Tríceps',3],'Elevación de gemelos':['Gemelos',3],
+'Plancha':['Core',4],'Crunch':['Core',4],'Elevación de piernas':['Core',4],'Cinta de correr':['Cardio',5],'Bicicleta':['Cardio',5],'Remo ergómetro':['Cardio',5]};
+const tierOf=(n,m)=>CAT[n]?CAT[n][1]:({Core:4,Cardio:5,Bíceps:3,Tríceps:3,Gemelos:3}[m]||2);
+const $=s=>document.querySelector(s);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const iso=d=>new Date(d.getTime()-d.getTimezoneOffset()*6e4).toISOString().slice(0,10);
+const shift=(s,n)=>{const d=new Date(s+'T12:00');d.setDate(d.getDate()+n);return iso(d)};
+let rows=[],date=iso(new Date());
+try{rows=JSON.parse(localStorage.gymRows||'[]')}catch(e){}
+const cfg=k=>{try{return localStorage.getItem(k)||''}catch(e){return ''}};
+const D_API='__GYM_API__',D_TOK='__GYM_TOKEN__'; // los inyecta el workflow desde GitHub Secrets
+let API=cfg('gymApi')||(D_API.startsWith('__')?'':D_API),TOK=cfg('gymTok')||(D_TOK.startsWith('__')?'':D_TOK);
+
+function toast(t){const e=$('#toast');e.textContent=t;e.classList.add('on');clearTimeout(toast.t);toast.t=setTimeout(()=>e.classList.remove('on'),2800)}
+function cache(){try{localStorage.gymRows=JSON.stringify(rows)}catch(e){}}
+async function api(body){
+  const r=await fetch(API,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({...body,token:TOK})});
+  const j=await r.json();if(j.error)throw new Error(j.error);return j;
+}
+async function push(d){
+  cache();if(!API)return;
+  $('#sync').textContent='Guardando…';
+  try{await api({action:'replaceDay',date:d,rows:rows.filter(r=>r.date===d)});$('#sync').textContent='Sincronizado'}
+  catch(e){$('#sync').textContent='Sin conexión';toast('No se pudo guardar en Sheets: '+e.message)}
+}
+async function pull(){
+  if(!API){$('#sync').textContent='Solo local';return}
+  $('#sync').textContent='Cargando…';
+  try{const r=await fetch(API+(API.includes('?')?'&':'?')+'token='+encodeURIComponent(TOK));const j=await r.json();
+    if(j.error)throw new Error(j.error);rows=j.rows;cache();$('#sync').textContent='Sincronizado'}
+  catch(e){$('#sync').textContent='Sin conexión';toast('No se pudo leer Sheets: '+e.message)}
+  render();
+}
+
+function day(){return rows.filter(r=>r.date===date).sort((a,b)=>a.order-b.order)}
+function render(){
+  $('#date').value=date;
+  const d=day(),done=d.filter(r=>r.done).length;
+  $('#pb').style.width=d.length?done/d.length*100+'%':'0';
+  $('#ptxt').textContent=d.length?`${done} de ${d.length} ejercicios hechos`:'Sin ejercicios. Añade el primero abajo o copia otro día.';
+  $('#list').innerHTML=d.length?d.map(r=>`<div class="ex ${r.done?'done':''}">
+    <button class="chk" data-id="${r.id}" aria-label="Marcar ${esc(r.name)}" aria-pressed="${r.done}">${r.done?'✓':''}</button>
+    <div class="in"><div class="nm">${esc(r.name)}</div><div class="sub"><span class="tag" style="background:${MUS[r.muscle]||'#666'}">${esc(r.muscle)}</span>${r.sets}×${r.reps} · ${r.secs} s${r.weight?` · ${r.weight} kg`:''}</div></div>
+    <button class="x" data-del="${r.id}" aria-label="Quitar ${esc(r.name)}">×</button></div>`).join(''):'<div class="sub">Nada planificado para este día.</div>';
+  chart();memory();
+}
+function chart(){
+  const d=day();if(!d.length){$('#chart').innerHTML='<div class="sub">El gráfico aparece cuando hay ejercicios.</div>';return}
+  const W=600,H=170,pl=8,pb=26,n=d.length,bw=(W-pl*2)/n,vals=d.map(r=>r.sets*r.reps),mx=Math.max(...vals,1);
+  let acc=0;const tt=d.map(r=>(acc+=r.done?r.sets*r.secs/60:0));const tm=Math.max(acc,1);
+  let g='',pts=[];
+  d.forEach((r,i)=>{const h=(H-pb-14)*vals[i]/mx,x=pl+i*bw+bw*.15,w=bw*.7,y=H-pb-h,c=MUS[r.muscle]||'#666';
+    g+=`<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="3" fill="${r.done?c:'none'}" stroke="${c}" stroke-width="2" ${r.done?'':'stroke-dasharray="4 3"'}/>`;
+    g+=`<text x="${x+w/2}" y="${H-10}" text-anchor="middle">${esc(r.name.slice(0,7))}</text>`;
+    pts.push(`${x+w/2},${H-pb-(H-pb-14)*tt[i]/tm}`)});
+  $('#chart').innerHTML=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Progreso del día">${g}<polyline points="${pts.join(' ')}" fill="none" stroke="var(--ink)" stroke-width="2"/><text x="${W-4}" y="12" text-anchor="end">${acc.toFixed(1)} min</text></svg>`;
+}
+function memory(){
+  const lim=shift(iso(new Date()),-6),stat={};
+  rows.filter(r=>r.done&&r.date>=lim).forEach(r=>{const s=stat[r.muscle]||(stat[r.muscle]={n:0,last:''});s.n+=r.sets;if(r.date>s.last)s.last=r.date});
+  const mx=Math.max(1,...Object.values(stat).map(s=>s.n)),now=new Date();
+  $('#mem').innerHTML=Object.keys(MUS).map(m=>{const s=stat[m]||{n:0,last:''};
+    const hrs=s.last?(now-new Date(s.last+'T20:00'))/36e5:999,col=s.last&&hrs<48?'var(--warn)':'var(--ok)';
+    return `<div class="mus"><span>${m}</span><div class="b"><i style="width:${s.n/mx*100}%;background:${MUS[m]}"></i></div><span class="sub"><span class="dot" style="background:${col}"></span>${s.n}${s.last?' · '+s.last.slice(5):''}</span></div>`}).join('');
+}
+function optimize(){
+  const d=day().filter(r=>!r.done),keep=day().filter(r=>r.done);
+  if(d.length<2){toast('Añade al menos 2 ejercicios pendientes');return}
+  const pool=d.map(r=>({r,t:tierOf(r.name,r.muscle)})).sort((a,b)=>a.t-b.t),out=[];
+  while(pool.length){ // dentro de cada nivel, evita repetir músculo consecutivo para descansar el grupo
+    const t=pool[0].t,last=out.length?out[out.length-1].muscle:'';
+    let i=pool.findIndex(p=>p.t===t&&p.r.muscle!==last);if(i<0)i=0;
+    out.push(pool.splice(i,1)[0].r)}
+  [...keep,...out].forEach((r,i)=>r.order=i);
+  push(date);render();toast('Orden: compuestos grandes → aislamiento → músculos pequeños → core → cardio, alternando músculos');
+}
+$('#list').onclick=e=>{
+  const c=e.target.closest('[data-id]'),x=e.target.closest('[data-del]');
+  if(c){const r=rows.find(r=>r.id===c.dataset.id);r.done=!r.done;push(date);render()}
+  if(x){rows=rows.filter(r=>r.id!==x.dataset.del);push(date);render()}
+};
+$('#f').onsubmit=e=>{e.preventDefault();
+  const name=$('#n').value.trim();if(!name)return;
+  rows.push({id:Date.now().toString(36)+Math.random().toString(36).slice(2,5),date,order:day().length,name,muscle:$('#m').value,sets:+$('#s').value||1,reps:+$('#r').value||1,secs:+$('#t').value||0,weight:+$('#p').value||0,done:false});
+  $('#n').value='';push(date);render();
+};
+$('#n').oninput=e=>{const c=CAT[e.target.value];if(c)$('#m').value=c[0]};
+$('#opt').onclick=optimize;
+$('#copy').onclick=()=>{
+  const to=$('#cd').value,src=day();
+  if(!to||to===date||!src.length){toast('Elige otra fecha con una rutina que copiar');return}
+  const base=rows.filter(r=>r.date===to).length;
+  src.forEach((r,i)=>rows.push({...r,id:Date.now().toString(36)+i+Math.random().toString(36).slice(2,4),date:to,order:base+i,done:false}));
+  push(to);toast(`Rutina copiada al ${to}`);date=to;render();
+};
+const go=d=>{date=d;render()};
+$('#prev').onclick=()=>go(shift(date,-1));$('#next').onclick=()=>go(shift(date,1));
+$('#today').onclick=()=>go(iso(new Date()));$('#date').onchange=e=>e.target.value&&go(e.target.value);
+$('#saveapi').onclick=()=>{API=$('#api').value.trim();TOK=$('#tok').value.trim();try{localStorage.gymApi=API;localStorage.gymTok=TOK}catch(e){}
+  if(API&&rows.length&&confirm('¿Subir los datos de este dispositivo a Sheets? Cancelar descarga lo que ya hay en Sheets.')){
+    const ds=[...new Set(rows.map(r=>r.date))];Promise.all(ds.map(push)).then(pull)}else pull()};
+$('#api').value=API;$('#tok').value=TOK;
+$('#m').innerHTML=Object.keys(MUS).map(m=>`<option>${m}</option>`).join('');
+$('#cat').innerHTML=Object.keys(CAT).map(n=>`<option value="${n}">`).join('');
+$('#cd').value=shift(date,7);
+render();pull();
+</script>
+</body>
+</html>
